@@ -1,0 +1,3 @@
+- insert:
+    - id: snapshot-manager
+      name: 'dsh-snapshot-manager'
