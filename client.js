@@ -10,7 +10,7 @@ window.__ModuleLoader__.load({
     try { const d = require('react-dom'); if (typeof d.createPortal === 'function') portal = d.createPortal.bind(d) } catch (_) {}
     const API = 'http://127.0.0.1:8757'
     const CSS = [
-      '.whale-button{height:36px;min-width:36px;border:0;background:transparent;color:var(--dsw-alias-label-primary,#edf0f6);border-radius:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 9px;-webkit-app-region:no-drag}',
+      '.whale-button{height:36px;min-width:36px;border:0;background:transparent;color:#e5484d;border-radius:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 9px;font-weight:600;-webkit-app-region:no-drag}',
       '.whale-button:hover,.whale-close:hover,.whale-btn:hover:not(:disabled){background:rgba(128,128,128,.19)}',
       '.whale-backdrop{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;padding:14px;-webkit-app-region:no-drag}',
       '.whale-window{box-sizing:border-box;width:min(960px,100%);height:min(840px,93vh);max-height:93vh;display:flex;flex-direction:column;position:relative;background:var(--dsw-alias-bg-base,#181a20);color:var(--dsw-alias-label-primary,#e8eaf0);border:1px solid rgba(128,128,128,.25);border-radius:13px;box-shadow:0 20px 70px rgba(0,0,0,.5);font-size:13px;overflow:hidden;-webkit-app-region:no-drag}',
@@ -90,6 +90,8 @@ window.__ModuleLoader__.load({
       const [addLabel,setAddLabel]=useState('')
       const [flash,setFlash]=useState(false)
       const prevProgress=useRef(false)
+      const prevSuccessSeq=useRef(null)
+      const [uninstall,setUninstall]=useState({eligible:false,reason:'正在确认任务状态…'})
 
       async function refresh() {
         const [overview,prog,inst]=await Promise.allSettled([
@@ -121,12 +123,31 @@ window.__ModuleLoader__.load({
       useEffect(()=>{
         const before=prevProgress.current
         prevProgress.current=!!progress.active
-        if(before && !progress.active) {
-          setFlash(true);refresh().catch(()=>{})
-          const t=setTimeout(()=>setFlash(false),2000)
-          return()=>clearTimeout(t)
+        if(before && !progress.active && progress.op==='backup' &&
+           String(progress.current||'').startsWith('备份完成')) {
+          setFlash(true)
+          refresh().catch(()=>{})
         }
       },[progress.active])
+      useEffect(()=>{
+        const seq=Number(progress.success_seq||0)
+        if(prevSuccessSeq.current!==null && seq>prevSuccessSeq.current) setFlash(true)
+        prevSuccessSeq.current=seq
+      },[progress.success_seq])
+      useEffect(()=>{
+        let alive=true,timer
+        const poll=async()=>{
+          try {
+            const result=await api('/api/uninstall/status',{},14000)
+            if(alive)setUninstall(result)
+          } catch(error) {
+            if(alive)setUninstall({eligible:false,reason:'安全检查未完成：'+error.message})
+          }
+          if(alive)timer=setTimeout(poll,12000)
+        }
+        poll()
+        return()=>{alive=false;clearTimeout(timer)}
+      },[open])
       useEffect(()=>{
         if(!open)return
         const fn=e=>{if(e.key==='Escape'){if(dialog)setDialog(null);else setOpen(false)}}
@@ -158,6 +179,7 @@ window.__ModuleLoader__.load({
 
       async function createSnapshot(){
         if(!canSnap)return
+        setFlash(false)
         await action('已提交快照任务',async()=>{
           await api('/api/snapshot',{method:'POST',body:{name:snapName.trim()}})
           setSnapName('')
@@ -168,6 +190,10 @@ window.__ModuleLoader__.load({
       }
       async function openExternal(){
         await action('',()=>api('/api/open-ui',{method:'POST'}))
+      }
+      async function openUninstall(){
+        if(!uninstall.eligible)return
+        await action('请在独立窗口检查删除范围并进行确认',()=>api('/api/uninstall/open',{method:'POST'}))
       }
       async function toggleLock(s){
         await action('快照锁定状态已更新',()=>api('/api/lock',{method:'POST',body:{name:s.name,locked:!s.locked}}))
@@ -255,7 +281,11 @@ window.__ModuleLoader__.load({
               'primary',working||!plugin.profile_initialized):null,
           plugin&&plugin.installed?
             button('卸载插件',()=>setDialog({kind:'uninstall',title:'卸载内置插件？'}),'danger',working):null
-        ))
+        ),
+        h('div',{className:'whale-flex',style:{marginTop:12}},
+          button('彻底卸载 DeepSeek Harness',openUninstall,'danger',working||!uninstall.eligible),
+          h('span',{className:'whale-muted'},'只在外部独立窗口执行 · '+(uninstall.reason||'')))
+      )
 
       // 快照列表和完整的恢复/删除/锁定操作留在 Harness 内，不打开网页。
       const snaps=state&&Array.isArray(state.snapshots)?state.snapshots:[]
@@ -373,11 +403,15 @@ window.__ModuleLoader__.load({
         )
       ),document.body):null
 
+      const footerColor=flash?'#24bd70':(canSnap||pct!==null?'#5480ff':'#e5484d')
+      const footerText=flash?'✓ 已备份':pct!==null?pct+'%':'鲸鱼快照'
       return h(Fragment,null,
         h('button',{type:'button',className:'whale-button','aria-label':'鲸鱼快照',
-          title:'鲸鱼快照 · '+status,onClick:()=>setOpen(true)},
-          camera(canSnap||pct!==null?'#6279ed':null,pct,flash),
-          wide?h('span',null,'鲸鱼快照'):null
+          style:{color:footerColor,fontWeight:600},
+          title:'鲸鱼快照 · '+(flash?'备份已完成，点击清除对勾':pct!==null?'备份进度 '+pct+'%':status),
+          onClick:()=>{ if(flash)setFlash(false);setOpen(true) }},
+          camera(footerColor,pct,flash),
+          (wide || flash || pct!==null)?h('span',{style:{color:footerColor}},footerText):null
         ),panel)
     }
     return {
