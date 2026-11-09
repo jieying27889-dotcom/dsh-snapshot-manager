@@ -1,4 +1,4 @@
-# 鲸鱼快照 · DeepSeek Harness 内置插件 v1.1.0
+# 鲸鱼快照 · DeepSeek Harness 内置插件 v1.1.1
 
 **平台：Windows 10/11，DeepSeek Harness 桌面端。**
 
@@ -6,7 +6,7 @@
 
 ## 安装方式
 
-1. 解压发布包 `WhaleSnapshot-Harness-Plugin-v1.1.0.zip`。
+1. 解压发布包 `WhaleSnapshot-Harness-Plugin-v1.1.1.zip`。
 2. 在 DeepSeek Harness 的插件管理中选择“本地目录”安装。
 3. 选择解压后**包含 `package.json` 的文件夹**（不要只选择其中的 `bin`）。
 4. 安装成功后重新启动 Harness。左下角会显示「鲸鱼快照」，点击即可打开原生 React 面板。
@@ -37,3 +37,8 @@
 ## 构建与维护
 
 发布包直接安装，不要求本地另装 Python。需要二次开发时，使用独立源码项目 `dsh-toolkit`；不要把 `.dsh`、`config.json`、`dsh-snapshots`、测试缓存或个人凭据提交到仓库。
+
+## v1.1.1 修复
+
+- 修复 Harness 使用的 dsh-app:// 协议被本地 API 跨域限制拒绝（HTTP 403）的问题。原生插件重新能连接快照服务。
+- 保留对非本地网页来源的请求拦截。

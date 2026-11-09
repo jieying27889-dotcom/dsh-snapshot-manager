@@ -1,6 +1,6 @@
 {
     "name":  "dsh-snapshot-manager",
-    "version":  "1.1.0",
+    "version":  "1.1.1",
     "private":  true,
     "type":  "module",
     "description":  "DeepSeek Harness 快照管家 —— 保存 / 回滚 / 差异对比",
